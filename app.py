@@ -21,9 +21,6 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------------------------------------------------------
 # PERSISTENT CREDIT SYSTEM
-# Credits are saved to a small JSON file next to app.py, so the score
-# survives server restarts and browser reloads instead of resetting to
-# 1000 every time.
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CREDITS_FILE = os.path.join(BASE_DIR, "credits.json")
@@ -43,14 +40,13 @@ def save_credits():
         with open(CREDITS_FILE, "w") as f:
             json.dump({"credits": SYSTEM_CREDITS}, f)
     except OSError:
-        pass  # non-fatal — this session keeps working, just won't persist
+        pass
 
 
 SYSTEM_CREDITS = load_credits()
 
 
 def adjust_credits(delta):
-    """Change SYSTEM_CREDITS and persist the new value immediately."""
     global SYSTEM_CREDITS
     SYSTEM_CREDITS += delta
     save_credits()
@@ -63,13 +59,10 @@ BASE_SYSTEM_PROMPT = (
     "user's request (for example '200 words' or '3 paragraphs') and match them as "
     "closely as possible. If you do not have verified or reliable information about "
     "something, clearly say you are unsure instead of inventing facts, names, dates, "
-    "or figures."
+    "or figures. When you write code or any multi-line snippet meant to be copied, "
+    "always wrap it in a fenced code block with triple backticks and the language name."
 )
 
-# Appended to the system prompt whenever credits are low. This is what makes
-# the credit score actually change model behaviour instead of just being a
-# cosmetic number: low credits = the model is told to lean harder on web
-# context and be more conservative about unverified claims.
 STRICT_MODE_ADDENDUM = (
     " Your system credit score is currently LOW because of recent errors or "
     "unverified answers. Work extra carefully on this response: lean heavily "
@@ -107,6 +100,13 @@ def extract_clean_topic(user_input, history=None):
     return clean.upper() if len(clean) >= 2 else user_input.upper()
 
 
+# BUG FIX: "is offline" detection for the web-search step.
+# Previously ANY failure (including the user simply switching web search
+# off, or DNS/connection errors when the box has no internet) was treated
+# the same as "verification failed" and cost -100 credits. Now we tell
+# apart three cases: disabled-by-user, genuinely offline/network-down, and
+# an actual empty-result search — only the last one is still penalised
+# later in chat().
 def force_google_scrape(query):
     try:
         clean_q = re.sub(r'(?i)(write|create|draft|paragraph|essay|on|about|a|an|the|words|word)', '', query).strip()
@@ -125,13 +125,18 @@ def force_google_scrape(query):
 
         return None, False, "No search snippets returned."
     except Exception as e:
-        return None, False, f"Network Stream Error: {str(e)}"
+        err_str = str(e)
+        offline_signals = ["NameResolutionError", "ConnectionError", "Max retries",
+                            "Failed to establish", "Network is unreachable", "Timeout",
+                            "getaddrinfo failed", "RatelimitException"]
+        is_offline = any(sig.lower() in err_str.lower() for sig in offline_signals)
+        prefix = "OFFLINE:" if is_offline else "ERROR:"
+        return None, False, f"{prefix}{err_str}"
 
 
 def maybe_scrape(topic, web_search_enabled):
-    """Wraps force_google_scrape and respects the manual on/off toggle."""
     if not web_search_enabled:
-        return None, False, "Web search turned off by user."
+        return None, False, "DISABLED: Web search turned off by user."
     return force_google_scrape(topic)
 
 
@@ -140,37 +145,56 @@ def generate_llama_response(prompt_text, history_list, strict_mode=False):
         system_content = BASE_SYSTEM_PROMPT + (STRICT_MODE_ADDENDUM if strict_mode else "")
         messages = [{"role": "system", "content": system_content}]
 
-        # Last 6 turns of conversation memory are passed to the model for context.
-        for turn in history_list[-6:]:
+        # BUG FIX: history window bumped from 6 -> 12 turns so the model
+        # actually remembers more of the conversation (this is what most of
+        # the "history isn't working" reports were about — the model simply
+        # wasn't being shown enough of the past turns to stay coherent).
+        for turn in history_list[-12:]:
             role = "user" if turn.get("role") == "user" else "assistant"
-            messages.append({"role": role, "content": turn.get("content", "")})
+            content = turn.get("content", "")
+            if content:
+                messages.append({"role": role, "content": content})
 
         messages.append({"role": "user", "content": prompt_text})
 
+        # BUG FIX: reasoning_format was "hidden", which throws the model's
+        # actual reasoning away entirely — the UI's "Thinking Process" box
+        # was only ever showing our own hand-written log lines, never the
+        # model's real chain of thought. Switched to "parsed" so the raw
+        # reasoning comes back in its own field and we can surface it.
         completion = groq_client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=messages,
             temperature=0.6,
             max_tokens=4096,
             reasoning_effort="low",
-            reasoning_format="hidden"
+            reasoning_format="parsed",
         )
-        content = completion.choices[0].message.content
+        message = completion.choices[0].message
+        content = message.content
+        reasoning = getattr(message, "reasoning", None) or ""
 
-        # Safety net: reasoning models can occasionally burn their whole
-        # token budget on internal thinking and return nothing visible.
-        # Surface that clearly instead of showing a blank chat bubble.
         if not content or not content.strip():
             return (
                 "Model Error: Empty response — the model used its full token "
                 "budget on internal reasoning and returned no visible answer. "
                 "Try a shorter/simpler request.",
-                False
+                False,
+                reasoning,
             )
 
-        return content.strip(), True
+        return content.strip(), True, reasoning.strip() if reasoning else ""
     except Exception as e:
-        return f"Model Error: {str(e)}", False
+        return f"Model Error: {str(e)}", False, ""
+
+
+def build_thought(base_log, reasoning):
+    """Append the model's real reasoning (if any) under the routing log line,
+    so the frontend 'thinking' box shows the full trace instead of just the
+    one-line router summary."""
+    if reasoning:
+        return f"{base_log}\n\n--- Model reasoning ---\n{reasoning}"
+    return base_log
 
 
 @app.route("/chat", methods=["POST", "OPTIONS"])
@@ -233,7 +257,7 @@ def chat():
         if is_verified and scraped_text:
             gen_prompt += f"\n\nContext reference from web search: {scraped_text}"
 
-        llama_output, success = generate_llama_response(gen_prompt, history, strict_mode=is_low_credit)
+        llama_output, success, reasoning = generate_llama_response(gen_prompt, history, strict_mode=is_low_credit)
 
         if success:
             reward = 20 if is_low_credit else 50
@@ -242,8 +266,10 @@ def chat():
             thought_log = f"{tag}: Generated output for '{active_topic}'. +{reward} Credits!"
             if is_verified:
                 thought_log += f" Web context attached ({audit_info})."
-            elif not web_search_enabled:
+            elif audit_info.startswith("DISABLED"):
                 thought_log += " (Web search disabled by user.)"
+            elif audit_info.startswith("OFFLINE"):
+                thought_log += " (Web search unreachable — no credit penalty applied.)"
             reply_text = llama_output
         else:
             adjust_credits(-100)
@@ -252,7 +278,7 @@ def chat():
 
         return jsonify({
             "reply": reply_text,
-            "thought": mode_prefix + thought_log,
+            "thought": mode_prefix + build_thought(thought_log, reasoning),
             "response_time": round(time.time() - start_time, 2),
             "credits": SYSTEM_CREDITS
         })
@@ -273,20 +299,25 @@ def chat():
                 "credits": SYSTEM_CREDITS
             })
         else:
-            adjust_credits(-100)
-            fallback_prefix = f"⚠️ PENALTY (-100 Credits) | Web Verification Failed: {audit_info}. "
+            # BUG FIX: only deduct credits for a genuine verification failure.
+            # If the user turned web search off, or the search backend is
+            # simply unreachable (offline), that isn't the model's fault, so
+            # no penalty is applied in either of those two cases anymore.
+            if audit_info.startswith("DISABLED") or audit_info.startswith("OFFLINE"):
+                reason = "disabled by user" if audit_info.startswith("DISABLED") else "web search unreachable (offline)"
+                fallback_prefix = f"ℹ️ No penalty — {reason}. Falling back to model knowledge. "
+            else:
+                adjust_credits(-100)
+                fallback_prefix = f"⚠️ PENALTY (-100 Credits) | Web Verification Failed: {audit_info}. "
 
     # 5. CONVERSATIONAL FALLBACK
-    # In careful mode, still try to ground the reply with a quick web lookup
-    # instead of just refusing — this is what makes low credits "work harder"
-    # rather than being a cosmetic-only penalty.
     fallback_prompt = user_message
     if is_low_credit:
         scraped_text, is_verified, audit_info = maybe_scrape(active_topic, web_search_enabled)
         if is_verified and scraped_text:
             fallback_prompt += f"\n\nContext reference from web search: {scraped_text}"
 
-    bot_reply, success = generate_llama_response(fallback_prompt, history, strict_mode=is_low_credit)
+    bot_reply, success, reasoning = generate_llama_response(fallback_prompt, history, strict_mode=is_low_credit)
 
     if success:
         thought_log = fallback_prefix + "Processed conversational query via GPT-OSS-20B Engine."
@@ -297,7 +328,7 @@ def chat():
 
     return jsonify({
         "reply": bot_reply,
-        "thought": mode_prefix + thought_log,
+        "thought": mode_prefix + build_thought(thought_log, reasoning),
         "response_time": round(time.time() - start_time, 2),
         "credits": SYSTEM_CREDITS
     })
