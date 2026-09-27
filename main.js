@@ -58,7 +58,7 @@ async function send() {
         const webSearchToggle = document.getElementById("webSearchToggle");
         const webSearchEnabled = webSearchToggle ? webSearchToggle.checked : true;
 
-        const res = await fetch("https://justtalk-1-1-alpha-1.onrender.com/", {
+        const res = await fetch("https://justtalk-1-1-alpha-1.onrender.com/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
