@@ -1,5 +1,4 @@
 let chatHistory = [];
-
 function toggleThink(id) {
     const el = document.getElementById(id);
     if (el.style.display === "none" || el.style.display === "") {
@@ -59,7 +58,7 @@ async function send() {
         const webSearchToggle = document.getElementById("webSearchToggle");
         const webSearchEnabled = webSearchToggle ? webSearchToggle.checked : true;
 
-        const res = await fetch("http://127.0.0.1:5000/chat", {
+        const res = await fetch("https://justtalk-1-1-alpha-1.onrender.com/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
