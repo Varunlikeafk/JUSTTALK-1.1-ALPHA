@@ -16,7 +16,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # Hardcoded for local testing. Do NOT push this file to a public GitHub repo
 # or share it anywhere with this key still in it — rotate the key on
 # console.groq.com if that ever happens.
-GROQ_API_KEY = "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"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------------------------------------------------------------------
