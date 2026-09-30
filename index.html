@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -37,12 +36,16 @@
     </div>
     <p class="splash-sub">JUSTTALK 1.1 — an AI that thinks out loud</p>
   </div>
+  <div class="splash-marquee" aria-hidden="true"><div class="marquee"><div class="mq-track">
+    <span>ROUTE <b>→</b> VERIFY <b>→</b> REASON <b>→</b> ANSWER <b>+</b> LIVE WEB SEARCH <b>+</b> VISIBLE REASONING <b>+</b> PERSISTENT CREDITS <b>+</b></span>
+    <span>ROUTE <b>→</b> VERIFY <b>→</b> REASON <b>→</b> ANSWER <b>+</b> LIVE WEB SEARCH <b>+</b> VISIBLE REASONING <b>+</b> PERSISTENT CREDITS <b>+</b></span>
+  </div></div></div>
   <div class="splash-hint">Tap anywhere to enter ↝</div>
 </div>
 
 <!-- ============ AUTH VIEW ============ -->
 <div id="view-auth" class="view">
-  <div class="brand-row"><span class="brand-dot"></span><span class="brand-name">JUSTTALK</span></div>
+  <div class="brand-row"><span class="brand-dot"></span><span class="brand-name">JUSTTALK</span><a class="site-link" href="landing.html">← Website</a></div>
 
   <div class="auth-card">
     <div class="auth-eyebrow">1.1 ALPHA</div>
@@ -143,6 +146,7 @@
         <div class="credit-card">
           <div class="credit-card-title">System Credits</div>
           <div id="creditDisplay" class="credit-value">1000</div>
+          <div class="bar-track"><div class="bar-fill" id="creditBar" style="width:100%"></div></div>
         </div>
         <button class="side-link" id="logoutBtn" style="border:1px solid var(--line);"><span class="ico">⏻</span> Sign out</button>
       </div>
@@ -152,9 +156,21 @@
       <div id="header">
         <div class="h-left">
           <button id="menuToggle">☰</button>
-          <span>Regen 1 Alpha</span>
+          <span class="brand-mark">R</span><span class="hdr-title">Regen 1 Alpha</span>
         </div>
-        <span class="h-status">● Web Engine Active</span>
+        <span class="h-status">Web Engine Active</span>
+      </div>
+
+      <div id="empty-state">
+        <div class="eyebrow">⚡ <b>20B parameters</b> · Groq-hosted inference</div>
+        <h1>Agent-grade reasoning.<br><span class="hl">Groq-grade speed.</span></h1>
+        <p class="lead">Every message is routed, verified against the live web, and shipped with its reasoning. Try one:</p>
+        <div class="chip-grid">
+          <button class="chip" data-q="What's today's date?"><span class="feat-icon">⏱</span><b>What's today's date?</b><span class="pill">01 Temporal</span></button>
+          <button class="chip" data-q="Who are you?"><span class="feat-icon">◎</span><b>Who are you?</b><span class="pill">02 Identity</span></button>
+          <button class="chip" data-q="Write a 100 word paragraph on black holes"><span class="feat-icon">✎</span><b>Write a 100 word paragraph on black holes</b><span class="pill">03 Generation</span></button>
+          <button class="chip" data-q="Who founded Tesla?"><span class="feat-icon">🌐</span><b>Who founded Tesla?</b><span class="pill">04 Factual</span></button>
+        </div>
       </div>
 
       <div id="chat-flow"></div>
