@@ -9,55 +9,64 @@ const LS_SESSION  = "jt_session";      // { username, guest }
 const LS_HISTORY  = "jt_chat_history"; // persisted chat history
 
 // ---------------------------------------------------------------------
-// Background starfield (used behind auth/hub, and reused for the warp)
+// Background: connected-node network (same as landing.html "netCanvas"),
+// orange nodes, cursor-reactive. Paused while the chat view is open.
 // ---------------------------------------------------------------------
 const starCanvas = document.getElementById("starfield");
 const starCtx = starCanvas.getContext("2d");
-let stars = [];
+let netNodes = [];
+const netMouse = { x: -9999, y: -9999 };
 
-function resizeStarCanvas() {
+function initNet() {
   starCanvas.width = window.innerWidth;
   starCanvas.height = window.innerHeight;
-}
-function makeStars(n) {
-  stars = [];
-  for (let i = 0; i < n; i++) {
-    stars.push({
+  const count = Math.min(110, Math.floor((starCanvas.width * starCanvas.height) / 18000));
+  netNodes = [];
+  for (let i = 0; i < count; i++) {
+    netNodes.push({
       x: Math.random() * starCanvas.width,
       y: Math.random() * starCanvas.height,
-      r: Math.random() * 1.3 + 0.2,
-      tw: Math.random() * Math.PI * 2
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: (Math.random() - 0.5) * 0.25
     });
   }
 }
-function drawStarfield() {
-  starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
-  const grad = starCtx.createRadialGradient(
-    starCanvas.width / 2, starCanvas.height / 2, 0,
-    starCanvas.width / 2, starCanvas.height / 2, Math.max(starCanvas.width, starCanvas.height) * 0.7
-  );
-  grad.addColorStop(0, "#111118");
-  grad.addColorStop(1, "#07070a");
-  starCtx.fillStyle = grad;
-  starCtx.fillRect(0, 0, starCanvas.width, starCanvas.height);
+function drawNet() {
+  requestAnimationFrame(drawNet);
+  const chatView = document.getElementById("view-chat");
+  if (chatView && chatView.classList.contains("active")) return; // hidden behind chat, save CPU
 
-  for (const s of stars) {
-    s.tw += 0.02;
-    const alpha = 0.4 + Math.sin(s.tw) * 0.4;
-    starCtx.beginPath();
-    starCtx.fillStyle = `rgba(255,255,255,${Math.max(0.1, alpha)})`;
-    starCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    starCtx.fill();
+  const w = starCanvas.width, h = starCanvas.height;
+  starCtx.clearRect(0, 0, w, h);
+  for (const n of netNodes) {
+    n.x += n.vx; n.y += n.vy;
+    if (n.x < 0 || n.x > w) n.vx *= -1;
+    if (n.y < 0 || n.y > h) n.vy *= -1;
+    const dx = n.x - netMouse.x, dy = n.y - netMouse.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 140 && dist > 0) { n.x += dx / dist * 0.6; n.y += dy / dist * 0.6; }
   }
-  requestAnimationFrame(drawStarfield);
+  for (let i = 0; i < netNodes.length; i++) {
+    for (let j = i + 1; j < netNodes.length; j++) {
+      const a = netNodes[i], b = netNodes[j];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (d < 120) {
+        starCtx.strokeStyle = `rgba(255,255,255,${0.12 * (1 - d / 120)})`;
+        starCtx.lineWidth = 1;
+        starCtx.beginPath(); starCtx.moveTo(a.x, a.y); starCtx.lineTo(b.x, b.y); starCtx.stroke();
+      }
+    }
+  }
+  starCtx.fillStyle = "rgba(255,154,31,0.85)";
+  for (const n of netNodes) {
+    starCtx.beginPath(); starCtx.arc(n.x, n.y, 2, 0, Math.PI * 2); starCtx.fill();
+  }
 }
-resizeStarCanvas();
-makeStars(160);
-drawStarfield();
-window.addEventListener("resize", () => {
-  resizeStarCanvas();
-  makeStars(160);
-});
+initNet();
+drawNet();
+window.addEventListener("resize", initNet);
+window.addEventListener("mousemove", e => { netMouse.x = e.clientX; netMouse.y = e.clientY; });
+window.addEventListener("mouseleave", () => { netMouse.x = -9999; netMouse.y = -9999; });
 
 // ---------------------------------------------------------------------
 // View router
@@ -207,7 +216,8 @@ function initWarp() {
     warpStars.push({
       x: (Math.random() - 0.5) * warpCanvas.width,
       y: (Math.random() - 0.5) * warpCanvas.height,
-      z: Math.random() * warpCanvas.width
+      z: Math.random() * warpCanvas.width,
+      c: Math.floor(Math.random() * 3)
     });
   }
   warpCtx.fillStyle = "#07070a";
@@ -248,7 +258,8 @@ function drawWarp(now) {
     const depthFactor = 1 - s.z / warpCanvas.width;
     const size = Math.max(0.6, depthFactor * 2.4);
     const brightness = 0.5 + depthFactor * 0.5;
-    warpCtx.strokeStyle = `rgba(255,255,255,${brightness})`;
+    const WARP_COLORS = ["255,255,255", "255,154,31", "255,47,110"];
+    warpCtx.strokeStyle = `rgba(${WARP_COLORS[s.c || 0]},${brightness})`;
     warpCtx.lineWidth = size;
     warpCtx.beginPath();
     warpCtx.moveTo(ppx, ppy);
@@ -358,7 +369,7 @@ function renderBotContent(raw) {
   }
   const rest = raw.slice(lastIndex);
   if (rest.trim()) html += renderParagraphs(rest);
-  return html || renderParagraphs(raw);
+  return (html || renderParagraphs(raw)).replace(/>\s*\n\s*</g, '><').trim();
 }
 
 // Long plain-text paragraphs (>= 400 chars, no code fence) also get wrapped
@@ -377,7 +388,7 @@ function renderParagraphs(text) {
         <pre id="${codeId}" style="white-space:pre-wrap;font-family:inherit;font-size:14.5px;">${escapeHtml(trimmed)}</pre>
       </div>`;
   }
-  return `<span>${escapeHtml(trimmed)}</span>`;
+  return `<span>${escapeHtml(trimmed).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</span>`;
 }
 
 function copyBoxText(id, btn) {
@@ -403,7 +414,26 @@ function copyWholeMessage(id, btn) {
 function toggleThink(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.style.display = (el.style.display === "none" || el.style.display === "") ? "block" : "none";
+  const bar = el.closest(".think-bar");
+  if (bar) bar.classList.toggle("open");
+}
+
+
+// Animated credit counter (count-up/down + bump), matches landing motion.
+function setCredits(target) {
+  const el = document.getElementById("creditDisplay");
+  const from = parseInt(el.textContent, 10) || 0;
+  const t0 = performance.now(), dur = 600;
+  el.style.color = target < 700 ? "#f43f5e" : "#22c55e";
+  const bar = document.getElementById("creditBar");
+  if (bar) { bar.style.width = Math.max(4, Math.min(100, target / 10)) + "%"; bar.classList.toggle("neg", target < 700); }
+  el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
+  function step(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    el.textContent = Math.round(from + (target - from) * (1 - Math.pow(1 - p, 3)));
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 function toggleBtn() {
@@ -468,11 +498,12 @@ async function send() {
     <div class="chat-row bot-row msg-enter" id="loading-${thinkId}">
       <div class="avatar bot-avatar">JT</div>
       <div class="bubble-container">
-        <div class="think-bar">
+        <div class="think-bar live open">
           <div class="think-header" onclick="toggleThink('${thinkId}')">
-            <span>🧠 Thinking Process...</span><span>▼</span>
+            <span>🧠 Thinking Process...</span><span class="arrow">▼</span>
           </div>
-          <div class="think-content" id="${thinkId}">Analyzing query context and verifying live sources...</div>
+          ${routerChips(-1)}
+          <div class="think-body"><div class="think-content routing" id="${thinkId}">routing…</div></div>
         </div>
       </div>
     </div>`;
@@ -491,6 +522,10 @@ async function send() {
     });
     const data = await res.json();
 
+    const prevCredits = parseInt(creditDisplay.textContent, 10) || 0;
+    const delta = data.credits !== undefined ? data.credits - prevCredits : 0;
+    const deltaPill = delta ? `<span class="delta ${delta > 0 ? "pos" : "neg"}">${delta > 0 ? "+" : ""}${delta}</span>` : "";
+
     const loadEl = document.getElementById(`loading-${thinkId}`);
     if (loadEl) loadEl.remove();
 
@@ -504,21 +539,21 @@ async function send() {
         <div class="bubble-container">
           <div class="think-bar">
             <div class="think-header" onclick="toggleThink('${thinkId}')">
-              <span>🧠 Inner Thought Process</span><span>▼</span>
+              <span>🧠 Inner Thought Process</span><span class="arrow">▼</span>
             </div>
-            <div class="think-content" id="${thinkId}">${escapeHtml(data.thought || "")}</div>
+            ${routerChips(detectRouter(data.thought))}
+            <div class="think-body"><div class="think-content" id="${thinkId}">${escapeHtml(data.thought || "")}</div></div>
           </div>
           <div class="bot-bubble" id="${msgId}">${renderBotContent(data.reply || "")}</div>
           <div class="meta-row">
-            <span class="meta-tag">⚡ ${data.response_time}s</span>
+            <span class="meta-pill">⚡ ${data.response_time}s</span>${deltaPill}
             <button class="copy-msg-btn" onclick="copyWholeMessage('${msgId}', this)">Copy</button>
           </div>
         </div>
       </div>`;
 
     if (data.credits !== undefined) {
-      creditDisplay.textContent = data.credits;
-      creditDisplay.style.color = data.credits < 700 ? "#f43f5e" : "#10a37f";
+      setCredits(data.credits);
     }
     chatFlow.scrollTop = chatFlow.scrollHeight;
   } catch (err) {
@@ -562,4 +597,47 @@ document.addEventListener("DOMContentLoaded", () => {
   // Resume session on reload instead of forcing sign-in again every time.
   const existing = getSession();
   if (existing) enterHub();
+});
+
+
+// ---------------------------------------------------------------------
+// Landing-page UX: router chips, empty-state hero, suggestion chips
+// ---------------------------------------------------------------------
+const ROUTERS = ["Temporal", "Identity", "Generation", "Factual", "Fallback"];
+
+// Same 5-router flow as landing.html. active = index that answered,
+// earlier ones are "passed" (first match wins), -1 = still scanning.
+function routerChips(active) {
+  const steps = ROUTERS.map((n, i) => {
+    const st = active < 0 ? "" : (i < active ? "passed" : (i === active ? "active" : "idle"));
+    return `<div class="router-step ${st}" style="--i:${i}"><b>${i + 1}</b> ${n}</div>` +
+           (i < ROUTERS.length - 1 ? '<span class="router-arrow">→</span>' : "");
+  }).join("");
+  return `<div class="router-flow${active < 0 ? " scanning" : ""}">${steps}</div>`;
+}
+
+function detectRouter(thought) {
+  const t = (thought || "").split("\n\n--- Model reasoning ---")[0];
+  if (/SYSTEM ROUTER/i.test(t)) return 0;
+  if (/Identity query/i.test(t)) return 1;
+  if (/GENERATION|Generation Error|CAREFUL MODE RECOVERY/.test(t)) return 2;
+  if (/WEB VERIFIED/.test(t)) return 3;
+  return 4;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const flow = document.getElementById("chat-flow");
+  const empty = document.getElementById("empty-state");
+  const sync = () => empty.classList.toggle("hide", flow.childElementCount > 0);
+  new MutationObserver(sync).observe(flow, { childList: true });
+  sync();
+
+  empty.querySelectorAll(".chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const input = document.getElementById("userInput");
+      input.value = chip.dataset.q;
+      toggleBtn();
+      send();
+    });
+  });
 });
