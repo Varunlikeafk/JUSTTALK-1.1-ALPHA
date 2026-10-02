@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="stylesheet" href="./Style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>JUSTTALK 1.1 ALPHA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<div class="aurora-layer" aria-hidden="true">
+  <div class="aurora a1"></div>
+  <div class="aurora a2"></div>
+  <div class="aurora a3"></div>
+</div>
+
+<div class="meteor-layer" aria-hidden="true">
+  <span class="meteor" style="--top:4%;  --delay:0s;   --dur:5.5s;"></span>
+  <span class="meteor" style="--top:18%; --delay:1.6s; --dur:6.2s;"></span>
+  <span class="meteor" style="--top:34%; --delay:3.1s; --dur:5s;"></span>
+  <span class="meteor" style="--top:52%; --delay:0.7s; --dur:6.8s;"></span>
+  <span class="meteor" style="--top:68%; --delay:2.3s; --dur:5.4s;"></span>
+  <span class="meteor" style="--top:82%; --delay:4s;   --dur:6s;"></span>
+</div>
+
+<!-- ============ SPLASH VIEW ============ -->
+<div id="view-splash" class="view active">
+  <div class="splash-wrap">
+    <div class="splash-wordmark" id="splashWordmark">
+      <h1 class="rainbow-text">ALPHA</h1>
+    </div>
+    <p class="splash-sub">JUSTTALK 1.1 — an AI that thinks out loud</p>
+  </div>
+  <div class="splash-marquee" aria-hidden="true"><div class="marquee"><div class="mq-track">
+    <span>ROUTE <b>→</b> VERIFY <b>→</b> REASON <b>→</b> ANSWER <b>+</b> LIVE WEB SEARCH <b>+</b> VISIBLE REASONING <b>+</b> PERSISTENT CREDITS <b>+</b></span>
+    <span>ROUTE <b>→</b> VERIFY <b>→</b> REASON <b>→</b> ANSWER <b>+</b> LIVE WEB SEARCH <b>+</b> VISIBLE REASONING <b>+</b> PERSISTENT CREDITS <b>+</b></span>
+  </div></div></div>
+  <div class="splash-hint">Tap anywhere to enter ↝</div>
+</div>
+
+<!-- ============ AUTH VIEW ============ -->
+<div id="view-auth" class="view">
+  <div class="brand-row"><span class="brand-dot"></span><span class="brand-name">JUSTTALK</span><a class="site-link" href="front.html">← Website</a></div>
+
+  <div class="auth-card">
+    <div class="auth-eyebrow">1.1 ALPHA</div>
+    <h1 class="auth-title">Think out loud with an AI that shows its work.</h1>
+    <p class="auth-sub">Live web verification, visible reasoning, and a credit system that keeps answers honest.</p>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabSignIn">Sign in</button>
+      <button class="auth-tab" id="tabSignUp">Sign up</button>
+    </div>
+
+    <div id="authFields">
+      <div class="field">
+        <label for="authUser">Username</label>
+        <input type="text" id="authUser" placeholder="e.g. ada">
+      </div>
+      <div class="field">
+        <label for="authPass">Password</label>
+        <input type="password" id="authPass" placeholder="••••••••">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="authSubmit">Sign in</button>
+    <div class="auth-error" id="authError"></div>
+
+    <div class="auth-divider">or</div>
+    <button class="btn btn-ghost" id="guestBtn">Continue as guest</button>
+  </div>
+</div>
+
+<!-- ============ HUB VIEW ============ -->
+<div id="view-hub" class="view">
+  <div class="hub-top">
+    <span class="hub-user" id="hubUserLabel">Guest</span>
+    <button class="logout-link" id="hubLogout">Sign out</button>
+  </div>
+
+  <div class="hub-head">
+    <h2>Choose your model</h2>
+    <p>Pick which engine powers your conversation.</p>
+  </div>
+
+  <div class="model-grid">
+    <div class="model-card" id="cardAlpha">
+      <div class="model-glow"></div>
+      <div class="model-spotlight"></div>
+      <div class="model-badge">● ONLINE</div>
+      <h3>Regen 1 Alpha</h3>
+      <p>GPT‑OSS‑20B via Groq, with live web verification and a visible credit &amp; reasoning trail.</p>
+      <div class="model-cta launch">Launch ↗</div>
+    </div>
+
+    <div class="model-card disabled" id="cardAdaptive">
+      <div class="model-glow"></div>
+      <div class="model-spotlight"></div>
+      <div class="model-badge">COMING SOON</div>
+      <h3>Regen Adaptive</h3>
+      <p>A self-tuning successor model that adapts its reasoning depth to each question. In development.</p>
+      <div class="model-cta soon">Not yet available</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ WARP TRANSITION ============ -->
+<div id="view-warp" class="view">
+  <canvas id="warp-canvas"></canvas>
+  <div class="warp-flash"></div>
+  <div class="warp-caption">Piercing into Regen 1 Alpha…</div>
+</div>
+
+<!-- ============ CHAT VIEW ============ -->
+<div id="view-chat" class="view">
+  <div id="app-shell">
+    <div id="sidebar-overlay"></div>
+    <div id="sidebar">
+      <button id="newChatBtn" class="new-chat-btn">✎&nbsp;&nbsp;New chat</button>
+
+      <div class="side-section-title">Menu</div>
+      <button class="side-link" id="backToHub"><span class="ico">◧</span> Switch model</button>
+      <button class="side-link" id="aboutBtn"><span class="ico">✦</span> About JUSTTALK</button>
+      <button class="side-link" id="clearHistoryBtn"><span class="ico">⟲</span> Clear conversation</button>
+
+      <div class="side-bottom">
+        <div class="profile-card">
+          <div class="avatar-sm" id="profileAvatar">G</div>
+          <div class="profile-meta">
+            <div class="profile-name" id="profileName">Guest</div>
+            <div class="profile-plan">Free tier</div>
+          </div>
+        </div>
+        <div class="toggle-card">
+          <div class="label">Web Search</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="webSearchToggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="credit-card">
+          <div class="credit-card-title">System Credits</div>
+          <div id="creditDisplay" class="credit-value">1000</div>
+          <div class="bar-track"><div class="bar-fill" id="creditBar" style="width:100%"></div></div>
+        </div>
+        <button class="side-link" id="logoutBtn" style="border:1px solid var(--line);"><span class="ico">⏻</span> Sign out</button>
+      </div>
+    </div>
+
+    <div id="main-container">
+      <div id="header">
+        <div class="h-left">
+          <button id="menuToggle">☰</button>
+          <span class="brand-mark">R</span><span class="hdr-title">Regen 1 Alpha</span>
+        </div>
+        <span class="h-status">Web Engine Active</span>
+      </div>
+
+      <div id="empty-state">
+        <div class="eyebrow">⚡ <b>20B parameters</b> · Groq-hosted inference</div>
+        <h1>Agent-grade reasoning.<br><span class="hl">Groq-grade speed.</span></h1>
+        <p class="lead">Every message is routed, verified against the live web, and shipped with its reasoning. Try one:</p>
+        <div class="chip-grid">
+          <button class="chip" data-q="What's today's date?"><span class="feat-icon">⏱</span><b>What's today's date?</b><span class="pill">01 Temporal</span></button>
+          <button class="chip" data-q="Who are you?"><span class="feat-icon">◎</span><b>Who are you?</b><span class="pill">02 Identity</span></button>
+          <button class="chip" data-q="Write a 100 word paragraph on black holes"><span class="feat-icon">✎</span><b>Write a 100 word paragraph on black holes</b><span class="pill">03 Generation</span></button>
+          <button class="chip" data-q="Who founded Tesla?"><span class="feat-icon">🌐</span><b>Who founded Tesla?</b><span class="pill">04 Factual</span></button>
+        </div>
+      </div>
+
+      <div id="chat-flow"></div>
+
+      <div id="input-container">
+        <div class="input-box">
+          <input type="text" id="userInput" placeholder="Message JUSTTALK 1.1 ALPHA...">
+          <button id="sendBtn">↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="main.js"></script>
+</body>
+</html>
