@@ -1,1 +1,1 @@
-# JUSTTALK-1.1-ALPHA
+# JUSTTALK-1.1-ALPHA (old model )
